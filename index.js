@@ -43,10 +43,11 @@ function createPanZoom(domElement, options) {
   if (!panController) {
     throw new Error('Cannot create panzoom for the current type of dom element')
   }
+  // the parentElement
   var owner = panController.getOwner()
   // just to avoid GC pressure, every time we do intermediate transform
   // we return this object. For internal use only. Never give it back to the consumer of this library
-  var storedCTMResult = {x: 0, y: 0}
+  var storedCTMResult = { x: 0, y: 0 }
 
   var isDirty = false
   var transform = new Transform()
@@ -111,6 +112,10 @@ function createPanZoom(domElement, options) {
     moveTo: moveTo,
     centerOn: centerOn,
     zoomTo: publicZoomTo,
+    zoomToCenter: zoomToCenter,
+    zoomToFullView: zoomToFullView,
+    moveToCenterOfElement: moveToCenterOfElement,
+    moveToCenterOfBounds: moveToCenterOfBounds,
     zoomAbs: zoomAbs,
     smoothZoom: smoothZoom,
     getTransform: getTransformModel,
@@ -152,11 +157,11 @@ function createPanZoom(domElement, options) {
       throw new Error('Invalid rectangle');
     }
 
-    var dw = size.x/rectWidth
-    var dh = size.y/rectHeight
+    var dw = size.x / rectWidth
+    var dh = size.y / rectHeight
     var scale = Math.min(dw, dh)
-    transform.x = -(rect.left + rectWidth/2) * scale + size.x/2
-    transform.y = -(rect.top + rectHeight/2) * scale + size.y/2
+    transform.x = -(rect.left + rectWidth / 2) * scale + size.x / 2
+    transform.y = -(rect.top + rectHeight / 2) * scale + size.y / 2
     transform.scale = scale
   }
 
@@ -201,11 +206,11 @@ function createPanZoom(domElement, options) {
       // just bail out;
       return;
     }
-    var dh = h/bbox.height
-    var dw = w/bbox.width
+    var dh = h / bbox.height
+    var dw = w / bbox.width
     var scale = Math.min(dw, dh)
-    transform.x = -(bbox.left + bbox.width/2) * scale + w/2 + left
-    transform.y = -(bbox.top + bbox.height/2) * scale + h/2 + top
+    transform.x = -(bbox.left + bbox.width / 2) * scale + w / 2 + left
+    transform.y = -(bbox.top + bbox.height / 2) * scale + h / 2 + top
     transform.scale = scale
   }
 
@@ -362,12 +367,12 @@ function createPanZoom(domElement, options) {
 
     // TODO: should i use controller's screen CTM?
     var clientRect = ui.getBoundingClientRect()
-    var cx = clientRect.left + clientRect.width/2
-    var cy = clientRect.top + clientRect.height/2
+    var cx = clientRect.left + clientRect.width / 2
+    var cy = clientRect.top + clientRect.height / 2
 
     var container = parent.getBoundingClientRect()
-    var dx = container.width/2 - cx
-    var dy = container.height/2 - cy
+    var dx = container.width / 2 - cx
+    var dy = container.height / 2 - cy
 
     internalMoveBy(dx, dy, true)
   }
@@ -380,12 +385,12 @@ function createPanZoom(domElement, options) {
     if (moveByAnimation) moveByAnimation.cancel()
 
     var from = { x: 0, y: 0 }
-    var to = { x: dx, y : dy }
+    var to = { x: dx, y: dy }
     var lastX = 0
     var lastY = 0
 
     moveByAnimation = animate(from, to, {
-      step: function(v) {
+      step: function (v) {
         moveBy(v.x - lastX, v.y - lastY)
 
         lastX = v.x
@@ -404,10 +409,10 @@ function createPanZoom(domElement, options) {
   }
 
   function listenForEvents() {
-    owner.addEventListener('mousedown', onMouseDown)
-    owner.addEventListener('dblclick', onDoubleClick)
-    owner.addEventListener('touchstart', onTouch)
-    owner.addEventListener('keydown', onKeyDown)
+    owner.addEventListener('mousedown', onMouseDown, { passive: true })
+    owner.addEventListener('dblclick', onDoubleClick, { passive: true })
+    owner.addEventListener('touchstart', onTouch, { passive: true })
+    owner.addEventListener('keydown', onKeyDown, { passive: true })
 
     // Need to listen on the owner container, so that we are not limited
     // by the size of the scrollable domElement
@@ -490,7 +495,7 @@ function createPanZoom(domElement, options) {
     if (z) {
       var scaleMultiplier = getScaleMultiplier(z)
       var ownerRect = owner.getBoundingClientRect()
-      publicZoomTo(ownerRect.width/2, ownerRect.height/2, scaleMultiplier)
+      publicZoomTo(ownerRect.width / 2, ownerRect.height / 2, scaleMultiplier)
     }
   }
 
@@ -503,7 +508,7 @@ function createPanZoom(domElement, options) {
     } else if (e.touches.length === 2) {
       // handleTouchMove() will care about pinch zoom.
       pinchZoomLength = getPinchZoomLength(e.touches[0], e.touches[1])
-      multitouch  = true
+      multitouch = true
       startTouchListenerIfNeeded()
     }
   }
@@ -588,8 +593,8 @@ function createPanZoom(domElement, options) {
         scaleMultiplier = getScaleMultiplier(delta)
       }
 
-      mouseX = (t1.clientX + t2.clientX)/2
-      mouseY = (t1.clientY + t2.clientY)/2
+      mouseX = (t1.clientX + t2.clientX) / 2
+      mouseY = (t1.clientY + t2.clientY) / 2
 
       publicZoomTo(mouseX, mouseY, scaleMultiplier)
 
@@ -717,37 +722,120 @@ function createPanZoom(domElement, options) {
     offsetX = e.clientX - ownerRect.left
     offsetY = e.clientY - ownerRect.top
 
-    return {x: offsetX, y: offsetY};
+    return { x: offsetX, y: offsetY };
   }
 
   function smoothZoom(clientX, clientY, scaleMultiplier) {
-      var fromValue = transform.scale
-      var from = {scale: fromValue}
-      var to = {scale: scaleMultiplier * fromValue}
+    var fromValue = transform.scale
+    var from = { scale: fromValue }
+    var to = { scale: scaleMultiplier * fromValue }
 
-      smoothScroll.cancel()
-      cancelZoomAnimation()
+    smoothScroll.cancel()
+    cancelZoomAnimation()
 
-      zoomToAnimation = animate(from, to, {
-        step: function(v) {
-          zoomAbs(clientX, clientY, v.scale)
-        }
-      })
+    zoomToAnimation = animate(from, to, {
+      step: function (v) {
+        zoomAbs(clientX, clientY, v.scale)
+      }
+    })
   }
 
+  /**
+   * Stops the current zoom animation and scrolling
+   * and then zooms in to clientX, clientY by scaleMultiplier
+   */
   function publicZoomTo(clientX, clientY, scaleMultiplier) {
-      smoothScroll.cancel()
-      cancelZoomAnimation()
-      return zoomByRatio(clientX, clientY, scaleMultiplier)
+    smoothScroll.cancel()
+    cancelZoomAnimation()
+    return zoomByRatio(clientX, clientY, scaleMultiplier)
+  }
+
+  /**
+   * Zooms to the center of the parent rectangle
+   * @param {Number} scaleMultiplier 0.8 = zoom out by 20% and 1.2 = zoom in by 20%
+   */
+  function zoomToCenter(scaleMultiplier) {
+    var containerRect = owner.getBoundingClientRect()
+    var centerX = containerRect.width / 2
+    var centerY = containerRect.height / 2
+    return zoomByRatio(centerX, centerY, scaleMultiplier)
+  }
+
+  /**
+   * 
+   * @param {DOMRect} elemBounds 
+   */
+  function getCenterOfBounds(elemBounds) {
+    var containerBounds = owner.getBoundingClientRect()
+
+    var centerX = -elemBounds.left + (((containerBounds.width / 2) - (elemBounds.width / 2)))
+    var centerY = -elemBounds.top + (((containerBounds.height / 2) - (elemBounds.height / 2)) + containerBounds.top)
+
+    var newX = transform.x + centerX
+    var newY = transform.y + centerY
+
+    return { x: newX, y: newY }
+  }
+
+  /**
+   * Calculate 
+   * @param {DOMElement} element 
+   */
+  function moveToCenterOfElement(element, xOffset, yOffset) {
+    var bounds = element.getBoundingClientRect()
+    moveToCenterOfBounds(bounds, xOffset, yOffset)
+  }
+
+  /**
+   * Calculate 
+   * @param {DOMElement} element 
+   */
+  function moveToCenterOfBounds(bounds, xOffset, yOffset) {
+    if (!xOffset) xOffset = 0
+    if (!yOffset) yOffset = 0
+    var center = getCenterOfBounds(bounds)
+    moveTo(center.x + xOffset, center.y + yOffset)
+  }
+
+  function zoomToFullView() {
+    var zoomLevelToFitView = getZoomLevelToFitView()
+    // what's the different we need to scale by to get there?
+    var scaleRatio = zoomLevelToFitView / transform.scale
+
+    moveToCenterOfElement(domElement)
+    zoomToCenter(scaleRatio)
+  }
+
+  /**
+   * Gets the ideal scale ratio to fit the entire view
+   * - Eg. container = 100x100 and element = 200x200 then scaleRatio = 0.5
+   */
+  function getZoomLevelToFitView() {
+    // get the real, non-scaled bounding box for the DOM element
+    // eg, if we're zoomed by 50% it will STILL return the 100% bounding box
+    var domRect = panController.getDOMRect()
+    // get the scaled bounding client for the container
+    var containerRect = owner.getBoundingClientRect()
+
+    var scaleWidth = containerRect.width / domRect.width
+    var scaleHeight = containerRect.height / domRect.height
+
+    return Math.min(scaleWidth, scaleHeight)
   }
 
   function cancelZoomAnimation() {
-      if (zoomToAnimation) {
-          zoomToAnimation.cancel()
-          zoomToAnimation = null
-      }
+    if (zoomToAnimation) {
+      zoomToAnimation.cancel()
+      zoomToAnimation = null
+    }
   }
 
+  /**
+   * Get the scaleMultiplier by considering the speed we want to zoom with.
+   * - delta (-1 / zoom in) - speed (0.03) = scaleMultiplier (1.03)
+   * - delta (+1 / zoom out) - speed (0.03) = scaleMultiplier (0.97)
+   * @param {Number} delta
+   */
   function getScaleMultiplier(delta) {
     var scaleMultiplier = 1
     if (delta > 0) { // zoom out
@@ -822,7 +910,7 @@ function autoRun() {
   if (!scripts) return;
   var panzoomScript;
 
-  Array.from(scripts).forEach(function(x) {
+  Array.from(scripts).forEach(function (x) {
     if (x.src && x.src.match(/\bpanzoom(\.min)?\.js/)) {
       panzoomScript = x
     }
@@ -860,7 +948,7 @@ function autoRun() {
   function collectOptions(script) {
     var attrs = script.attributes;
     var options = {};
-    for(var i = 0; i < attrs.length; ++i) {
+    for (var i = 0; i < attrs.length; ++i) {
       var attr = attrs[i];
       var nameValue = getPanzoomAttributeNameValue(attr);
       if (nameValue) {
@@ -879,7 +967,7 @@ function autoRun() {
 
     var name = attr.name.substr(3)
     var value = JSON.parse(attr.value);
-    return {name: name, value: value};
+    return { name: name, value: value };
   }
 }
 
